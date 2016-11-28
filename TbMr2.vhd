@@ -146,12 +146,14 @@ entity delay_RAM_mem is
 end delay_RAM_mem;
 
 architecture delay_RAM_mem of delay_RAM_mem is
-	type type_state is (D1, D2, D3, D4, D5, D6, D7, D8);
+	type type_state is (D0, D1, D2, D3, D4, D5, D6, D7, D8);
 	signal Delay: type_state;
 	signal RAM: memory;
 	signal tmp_address: reg32;
 	alias low_address: reg16 is tmp_address(15 downto 0);	--  baixa para 16 bits devido ao CONV_INTEGER --
 begin
+
+
 
 	tmp_address <= address - START_ADDRESS;	--  offset do endereçamento  --
 
@@ -171,11 +173,11 @@ begin
 	end process;
 
 	-- read from memory
-	process(ce_n, oe_n, low_address)
+	process(ce_n, oe_n, low_address, Delay)
 	begin
 		case Delay is
 			when D8 =>
-				ack<='1'
+				--ack<='1';
 				if ce_n='0' and oe_n='0' and CONV_INTEGER(low_address)>=0 and CONV_INTEGER(low_address+3) <= MEMORY_SIZE then
 					data(31 downto 24) <= RAM(CONV_INTEGER(low_address+3));
 					data(23 downto 16) <= RAM(CONV_INTEGER(low_address+2));
@@ -187,23 +189,31 @@ begin
 					data(15 downto  8) <= (others => 'Z');
 					data(7 downto  0) <= (others => 'Z');
 				end if;
+			when others =>
 		end case;
 	end process;
 
-	process(clk, Delay)
+	process(clk)
 	begin
-		if falling_edge(clk)
+		if falling_edge(clk) then
 			case Delay is
-				D1 => Delay <= D2
-				D2 => Delay <= D3
-				D3 => Delay <= D4
-				D4 => Delay <= D5
-				D5 => Delay <= D6
-				D6 => Delay <= D7
-				D7 => Delay <= D8
-				D8 => Delay <= D1
-				ack <= '0'
+				when D0 => 
+					ack <= '0';
+					if send='1' then
+						Delay <= D1;
+					end if;
+				when D1 => Delay <= D2;
+				when D2 => Delay <= D3;
+				when D3 => Delay <= D4;
+				when D4 => Delay <= D5;
+				when D5 => Delay <= D6;
+				when D6 => Delay <= D7;
+				when D7 => Delay <= D8;
+				when D8 => 
+					ack <= '1';
+					Delay <= D0;
 			end case;
+		end if;
 	end process;
 	
 
@@ -238,6 +248,11 @@ architecture CPU_tb of CPU_tb is
 	signal external_data16: reg16;
 	signal external_data: reg32;
 
+	-- NOIS QI FIZEMU
+	signal send_CPU, ack_CPU: std_logic;
+
+
+
 	file ARQ: TEXT open READ_MODE is "start.txt";
 
 begin
@@ -250,7 +265,7 @@ begin
 		wait for 10 ns;
 	end process;
 
-	Data_mem: entity work.RAM_mem generic map(START_ADDRESS => x"10010000") port map(ce_n => Dce_n, we_n => Dwe_n, oe_n => Doe_n, bw => bw, address => Dadress, data => Ddata);
+	Data_mem: entity work.delay_RAM_mem generic map(START_ADDRESS => x"10010000") port map(ack=> ack_CPU, send=>send_CPU, clk=>ck, ce_n => Dce_n, we_n => Dwe_n, oe_n => Doe_n, bw => bw, address => Dadress, data => Ddata);
 
 	Instr_mem: entity work.RAM_mem generic map(START_ADDRESS => x"00400000") port map(ce_n => Ice_n, we_n => Iwe_n, oe_n => Ioe_n, bw => '1', address => Iadress, data => Idata);
 
@@ -351,15 +366,10 @@ begin
 	-- Port map dos subsitemas ------------------------------------------------------------
 	---------------------------------------------------------------------------------------
 	CPU: Entity work.MR2 port map
-		(clock => ck, reset => rstCPU, i_address => i_cpu_address, instruction => Idata,
+		(send => send_CPU, ack => ack_CPU, clock => ck, reset => rstCPU, i_address => i_cpu_address, instruction => Idata,
 		ce => ce, rw => rw, bw => bw, d_address => d_cpu_address, data => data_cpu,
 		intr => intr, inta => inta);
 
-	C11: Entity work.UART port map
-			(rst => rst, ck => ck, ce => ce(0), rw => rw , inta => inta, intr => intr,
-			address => d_cpu_address, data => data_cpu
-			-- falta definir a interface com a outra UART (modelo assincrono) --
-			);
 
 	---------------------------------------------------------------------------------------
 	---	Deve ser inserido um codigo que complementa a funcionalidade da UART

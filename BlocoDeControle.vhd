@@ -87,22 +87,28 @@ begin
 	begin
 		if rst='1' then
 			EA <= Sidle;
-			AckState <= hold
+			AckState <= hold;
 	-- Sidle is the state the machine stays while processor is being reset
 		elsif ck'event and ck='1' then
 			case AckState is
-				hold =>
-					if EA=Sidle then
-						send <= '1' 
+				when hold =>
+					if EA=Sld or EA=Sst then
+						send <= '1' ;
 						AckState <= waitAck;
-						EA <= Sfetch;
-					else
-						EA <= PE;
+					else	
+						if EA=Sidle then
+							EA <= Sfetch;
+						else
+							EA <= PE;
+						end if;
 					end if;
 				when waitAck =>
 					if ack='1' then
-						send <= '0'
+						send <= '0';
 						AckState <= hold;
+						EA <= PE;
+					end if;
+			end case;
 					
 		end if;
 	end process;

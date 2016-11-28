@@ -8,9 +8,9 @@ use work.p_MR2.all;
 entity MR2 is
 	port
 	(
-		clock,reset: in std_logic;
+		clock, reset, ack: in std_logic;
 		ce: out std_logic_vector(16 downto 0);
-		rw, bw: out std_logic;
+		rw, bw, send: out std_logic;
 		i_address, d_address: out reg32;
 		instruction: in reg32;
 		data: inout reg32;
@@ -23,6 +23,7 @@ architecture MR2 of MR2 is
 	signal IR: reg32;
 	signal uins: microinstruction;
 	signal data_address: reg32;
+
 begin
 
 	dp: entity work.datapath port map
@@ -38,6 +39,8 @@ begin
 	);
 	ct: entity work.control_unit port map
 	(
+		ack => ack,
+		send => send,
 		ck => clock,
 		rst => reset, 
 		IR => IR, 
