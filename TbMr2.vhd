@@ -139,7 +139,7 @@ entity delay_RAM_mem is
 	port
 	(
 		ack: out std_logic;
-		send,clk, ce_n, we_n, oe_n, bw: in std_logic;
+		gambiarrafeia, send ,clk, ce_n, we_n, oe_n, bw: in std_logic;
 		address: in reg32;
 		data: inout reg32
 	);
@@ -173,25 +173,41 @@ begin
 	end process;
 
 	-- read from memory
-	process(ce_n, oe_n, low_address, Delay)
+	process(ce_n, oe_n, low_address, Delay, gambiarrafeia)
 	begin
-		case Delay is
-			when D8 =>
-				--ack<='1';
-				if ce_n='0' and oe_n='0' and CONV_INTEGER(low_address)>=0 and CONV_INTEGER(low_address+3) <= MEMORY_SIZE then
-					data(31 downto 24) <= RAM(CONV_INTEGER(low_address+3));
-					data(23 downto 16) <= RAM(CONV_INTEGER(low_address+2));
-					data(15 downto  8) <= RAM(CONV_INTEGER(low_address+1));
-					data(7 downto  0) <= RAM(CONV_INTEGER(low_address ));
-				else
-					data(31 downto 24) <= (others => 'Z');
-					data(23 downto 16) <= (others => 'Z');
-					data(15 downto  8) <= (others => 'Z');
-					data(7 downto  0) <= (others => 'Z');
-				end if;
-			when others =>
-		end case;
+		if gambiarrafeia='0' then
+			case Delay is
+				when D8 =>
+					--ack<='1';
+					if ce_n='0' and oe_n='0' and CONV_INTEGER(low_address)>=0 and CONV_INTEGER(low_address+3) <= MEMORY_SIZE then
+						data(31 downto 24) <= RAM(CONV_INTEGER(low_address+3));
+						data(23 downto 16) <= RAM(CONV_INTEGER(low_address+2));
+						data(15 downto  8) <= RAM(CONV_INTEGER(low_address+1));
+						data(7 downto  0) <= RAM(CONV_INTEGER(low_address ));
+					else
+						data(31 downto 24) <= (others => 'Z');
+						data(23 downto 16) <= (others => 'Z');
+						data(15 downto  8) <= (others => 'Z');
+						data(7 downto  0) <= (others => 'Z');
+					end if;
+				when others =>
+			end case;
+		else 
+			if ce_n='0' and oe_n='0' and CONV_INTEGER(low_address)>=0 and CONV_INTEGER(low_address+3) <= MEMORY_SIZE then
+				data(31 downto 24) <= RAM(CONV_INTEGER(low_address+3));
+				data(23 downto 16) <= RAM(CONV_INTEGER(low_address+2));
+				data(15 downto  8) <= RAM(CONV_INTEGER(low_address+1));
+				data(7 downto  0) <= RAM(CONV_INTEGER(low_address ));
+			else
+				data(31 downto 24) <= (others => 'Z');
+				data(23 downto 16) <= (others => 'Z');
+				data(15 downto  8) <= (others => 'Z');
+				data(7 downto  0) <= (others => 'Z');
+			end if;
+		end if;
 	end process;
+
+
 
 	process(clk)
 	begin
@@ -238,7 +254,7 @@ architecture CPU_tb of CPU_tb is
 	signal Dadress, Ddata, Iadress, Idata,
 			i_cpu_address, d_cpu_address, data_cpu, tb_add, tb_data: reg32:= (others => '0');
 	signal Dce_n, Dwe_n, Doe_n, Ice_n, Iwe_n, Ioe_n, ck, rst, rstCPU,
-			go_i, go_d, rw, bw: std_logic;
+			go_i, go_d, rw, bw, gambiarrafeia: std_logic;
 	signal ce: std_logic_vector(16 downto 0);
 	signal intr, inta: std_logic;
 
@@ -265,9 +281,9 @@ begin
 		wait for 10 ns;
 	end process;
 
-	Data_mem: entity work.delay_RAM_mem generic map(START_ADDRESS => x"10010000") port map(ack=> ack_CPU, send=>send_CPU, clk=>ck, ce_n => Dce_n, we_n => Dwe_n, oe_n => Doe_n, bw => bw, address => Dadress, data => Ddata);
+	Data_mem: entity work.RAM_mem generic map(START_ADDRESS => x"10010000") port map(ce_n => Dce_n, we_n => Dwe_n, oe_n => Doe_n, bw => bw, address => Dadress, data => Ddata);
 
-	Instr_mem: entity work.RAM_mem generic map(START_ADDRESS => x"00400000") port map(ce_n => Ice_n, we_n => Iwe_n, oe_n => Ioe_n, bw => '1', address => Iadress, data => Idata);
+	Instr_mem: entity work.Delay_RAM_mem generic map(START_ADDRESS => x"00400000") port map(gambiarrafeia=>gambiarrafeia, ack=> ack_CPU, send=>send_CPU, clk=>ck, ce_n => Ice_n, we_n => Iwe_n, oe_n => Ioe_n, bw => '1', address => Iadress, data => Idata);
 
 	-- data memory signals --------------------------------------------------------
 	Dce_n    <= '0' when ce(16)='1' or go_d='1' else '1';
@@ -309,7 +325,8 @@ begin
 		variable line_arq: string(1 to 200);
 		variable code	: boolean;
 		variable i, address_flag: integer;
-	begin
+	begin	
+		gambiarrafeia <= '1';
 		go_i <= '0';
 		go_d <= '0';
 		rstCPU <= '1';			-- hold the processor during file reading
@@ -361,6 +378,7 @@ begin
 		rstCPU <= '0';	-- release the processor to execute
 		wait for 2 ns;	-- To activate the RST CPU signal
 		wait until rst = '1';  -- to Hold again!
+		gambiarrafeia <= '1';
 	end process;
 
 	-- Port map dos subsitemas ------------------------------------------------------------
